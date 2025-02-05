@@ -1,6 +1,9 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import { Timer } from 'three/addons/misc/Timer.js'
 import GUI from 'lil-gui'
+import { randInt } from 'three/src/math/MathUtils.js'
+import { texture, textureLoad } from 'three/tsl'
 
 /**
  * Base
@@ -14,59 +17,167 @@ const canvas = document.querySelector('canvas.webgl')
 // Scene
 const scene = new THREE.Scene()
 
+const texturedLoader = new THREE.TextureLoader()
+
+const floorAlphaTexture = texturedLoader.load('./floor/alpha.jpg')
+const floorColorTexture = texturedLoader.load('./floor/coast_sand_rocks_02_1k/coast_sand_rocks_02_diff_1k.jpg')
+const floorARMTexture = texturedLoader.load('./floor/coast_sand_rocks_02_1k/coast_sand_rocks_02_arm_1k.jpg')
+const floorNormalTexture = texturedLoader.load('./floor/coast_sand_rocks_02_1k/coast_sand_rocks_02_diff_1k.jpg')
+const floorDisplacementTexture = texturedLoader.load('./floor/coast_sand_rocks_02_1k/coast_sand_rocks_02_nor_gl_1k.jpg')
+
+floorColorTexture.repeat.set(8, 8)
+floorARMTexture.repeat.set(8, 8)
+floorNormalTexture.repeat.set(8, 8)
+floorDisplacementTexture.repeat.set(8, 8)
+
+floorColorTexture.wrapS = THREE.RepeatWrapping
+floorColorTexture.wrapT = THREE.RepeatWrapping
+floorColorTexture.color = THREE.SRGBColorSpace
+
+floorARMTexture.wrapS = THREE.RepeatWrapping
+floorARMTexture.wrapT = THREE.RepeatWrapping
+
+floorNormalTexture.wrapS = THREE.RepeatWrapping
+floorNormalTexture.wrapT = THREE.RepeatWrapping
+
+floorDisplacementTexture.wrapS = THREE.RepeatWrapping
+floorDisplacementTexture.wrapT = THREE.RepeatWrapping
+
+const wallColorTexture = texturedLoader.load('./wall/castle_brick_broken_06_1k/castle_brick_broken_06_diff_1k.jpg')
+const wallARMTexture = texturedLoader.load('./wall/castle_brick_broken_06_1k/castle_brick_broken_06_arm_1k.jpg')
+const wallNormalTexture = texturedLoader.load('./wall/castle_brick_broken_06_1k/castle_brick_broken_06_nor_gl_1k.jpg')
+
+wallColorTexture.colorSpace = THREE.SRGBColorSpace
+
+/**
+ * House
+ */
+
+const floor = new THREE.Mesh(
+  new THREE.PlaneGeometry(20, 20, 100, 100),
+  new THREE.MeshStandardMaterial({
+    alphaMap: floorAlphaTexture,
+    transparent: true,
+    map: floorColorTexture,
+    aoMap: floorARMTexture,
+    roughnessMap: floorARMTexture,
+    metalnessMap: floorARMTexture,
+    normalMap: floorNormalTexture,
+    displacementMap: floorDisplacementTexture,
+    displacementScale: 0.3,
+    displacementBias: -0.2
+  })
+)
+
+gui.add(floor.material, 'displacementScale').min(0).max(1).step(0.001).name('floorDisp')
+gui.add(floor.material, 'displacementBias').min(-1).max(1).step(0.001).name('floorBias')
+
+floor.rotation.x = - Math.PI * 0.5
+scene.add(floor)
+
+const house = new THREE.Group(
+)
+scene.add(house)
+
+const walls = new THREE.Mesh(
+  new THREE.BoxGeometry(4, 3, 4),
+  new THREE.MeshStandardMaterial({
+    map: wallColorTexture,
+    aoMap: wallARMTexture,
+    roughnessMap: wallARMTexture,
+    metalnessMap: wallARMTexture,
+    normalMap: wallNormalTexture,
+  })
+)
+gui.add(walls.material, 'displacementScale').min(0).max(1).step(0.001).name('floorDisp')
+gui.add(walls.material, 'displacementBias').min(-1).max(1).step(0.001).name('floorBias')
+
+walls.rotation.y = Math.PI / 2
+walls.position.y += 1.25
+
+house.add(walls)
+
+const roof = new THREE.Mesh(
+  new THREE.ConeGeometry(3, 0.5, 4),
+  new THREE.MeshStandardMaterial({
+    color: 'red',
+  })
+)
+roof.position.y = 3
+roof.rotation.y = Math.PI * 0.25
+house.add(roof)
+
+const door = new THREE.Mesh(
+  new THREE.PlaneGeometry(2.2, 2.2),
+  new THREE.MeshStandardMaterial({
+    color: 'yellow'
+  })
+)
+door.position.z = 2 + 0.01
+house.add(door)
+
+const bushGeometry = new THREE.SphereGeometry(1, 16, 16)
+const bushMaterial = new THREE.MeshStandardMaterial()
+const bush1 = new THREE.Mesh(bushGeometry, bushMaterial)
+bush1.scale.set(0.5, 0.5, 0.5)
+bush1.position.set(0.8, 0.2, 2.2)
+
+const bush2 = new THREE.Mesh(bushGeometry, bushMaterial)
+bush2.scale.set(0.25, 0.25, 0.25)
+bush2.position.set(1.4, 0.1, 2.1)
+
+const bush3 = new THREE.Mesh(bushGeometry, bushMaterial)
+bush3.scale.set(0.4, 0.4, 0.4)
+bush3.position.set(- 0.8, 0.1, 2.2)
+
+const bush4 = new THREE.Mesh(bushGeometry, bushMaterial)
+bush4.scale.set(0.15, 0.15, 0.15)
+bush4.position.set(- 1, 0.05, 2.6)
+
+house.add(bush1, bush2, bush3, bush4)
+
+const graveGeometry = new THREE.BoxGeometry(0.6, 0.8, 0.2)
+const graveMaterial = new THREE.MeshStandardMaterial()
+
+const graves = new THREE.Group()
+scene.add(graves)
+
+for (let i = 0; i < 26; i++) {
+  const grave = new THREE.Mesh(graveGeometry, graveMaterial)
+  grave.position.y += 0.3
+  const gravePosition = Math.PI * Math.random() * 2
+  const radius = 4 + Math.random() * 4
+  const x = Math.sin(gravePosition) * radius
+  const z = Math.cos(gravePosition) * radius
+  grave.position.x = x
+  grave.position.z = z
+
+  grave.rotation.x = (Math.random() - 0.5) * 0.4
+  grave.rotation.y = (Math.random() - 0.5) * 0.4
+  grave.rotation.z = (Math.random() - 0.5) * 0.4
+
+  graves.add(grave)
+}
 
 /**
  * Lights
  */
 // Ambient light
-const ambientLight = new THREE.AmbientLight(0xffffff, 1)
-gui.add(ambientLight, 'intensity').min(0).max(3).step(0.001)
+const ambientLight = new THREE.AmbientLight('#ffffff', 0.5)
 scene.add(ambientLight)
 
 // Directional light
-const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5)
-directionalLight.position.set(2, 2, - 1)
-gui.add(directionalLight, 'intensity').min(0).max(3).step(0.001)
-gui.add(directionalLight.position, 'x').min(- 5).max(5).step(0.001)
-gui.add(directionalLight.position, 'y').min(- 5).max(5).step(0.001)
-gui.add(directionalLight.position, 'z').min(- 5).max(5).step(0.001)
+const directionalLight = new THREE.DirectionalLight('#ffffff', 1.5)
+directionalLight.position.set(3, 2, -8)
 scene.add(directionalLight)
-
-/**
- * Materials
- */
-const material = new THREE.MeshStandardMaterial()
-material.roughness = 0.7
-gui.add(material, 'metalness').min(0).max(1).step(0.001)
-gui.add(material, 'roughness').min(0).max(1).step(0.001)
-
-/**
- * Objects
- */
-const sphere = new THREE.Mesh(
-  new THREE.SphereGeometry(0.5, 32, 32),
-  material
-)
-
-const plane = new THREE.Mesh(
-  new THREE.PlaneGeometry(5, 5),
-  material
-)
-plane.rotation.x = - Math.PI * 0.5
-plane.position.y = - 0.5
-
-scene.add(sphere, plane)
 
 /**
  * Sizes
  */
-// Initialize sizes
 const sizes = {
   width: window.innerWidth,
   height: window.innerHeight
 }
-
-// ...existing code...
 
 window.addEventListener('resize', () => {
   // Update sizes
@@ -87,37 +198,33 @@ window.addEventListener('resize', () => {
  */
 // Base camera
 const camera = new THREE.PerspectiveCamera(75, sizes.width / sizes.height, 0.1, 100)
-camera.position.x = -2
+camera.position.x = 7
 camera.position.y = 2
-camera.position.z = 3
+camera.position.z = 7
 scene.add(camera)
 
 // Controls
 const controls = new OrbitControls(camera, canvas)
 controls.enableDamping = true
-controls.maxPolarAngle = Math.PI * 0.5
-controls.rotateSpeed = 0.5
-controls.maxZoom = 0
-controls.enablePan = false
 
 /**
  * Renderer
  */
 const renderer = new THREE.WebGLRenderer({
-  canvas: canvas,
-  antialias: true
+  canvas: canvas
 })
-renderer.setClearColor(0xf3f3f3, 1)
 renderer.setSize(sizes.width, sizes.height)
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
 
 /**
  * Animate
  */
-const clock = new THREE.Clock()
+const timer = new Timer()
 
 const tick = () => {
-  const elapsedTime = clock.getElapsedTime()
+  // Timer
+  timer.update()
+  const elapsedTime = timer.getElapsed()
 
   // Update controls
   controls.update()
@@ -128,42 +235,5 @@ const tick = () => {
   // Call tick again on the next frame
   window.requestAnimationFrame(tick)
 }
-
-const zoomObjectOnClick = (object) => {
-  const boundingBox = new THREE.Box3().setFromObject(object)
-  const center = boundingBox.getCenter(new THREE.Vector3())
-  const size = boundingBox.getSize(new THREE.Vector3())
-
-  const maxDim = Math.max(size.x, size.y, size.z)
-  const fov = camera.fov * (Math.PI / 180)
-  let cameraZ = Math.abs(maxDim / 4 * Math.tan(fov * 2))
-
-  cameraZ *= 1.5
-
-  const minZ = boundingBox.min.z
-  const cameraToFarEdge = minZ < 0 ? -minZ + cameraZ : cameraZ - minZ
-
-  camera.position.copy(center)
-  camera.position.z += cameraZ
-  controls.target.copy(center)
-  controls.update()
-}
-
-document.addEventListener('click', (event) => {
-  const raycaster = new THREE.Raycaster()
-  const mouse = new THREE.Vector2()
-
-  mouse.x = (event.clientX / sizes.width) * 2 - 1
-  mouse.y = -(event.clientY / sizes.height) * 2 + 1
-
-  raycaster.setFromCamera(mouse, camera)
-
-  const intersects = raycaster.intersectObjects(scene.children, true)
-
-  if (intersects.length) {
-    zoomObjectOnClick(intersects[0].object)
-  }
-})
-
 
 tick()
